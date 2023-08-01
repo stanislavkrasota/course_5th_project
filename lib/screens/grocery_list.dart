@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:course_5th_project/mocks/categories.dart';
-import 'package:course_5th_project/mocks/dummy_items.dart';
 import 'package:course_5th_project/models/grocery_item.dart';
 import 'package:course_5th_project/screens/new_item.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +16,9 @@ class GroceryList extends StatefulWidget {
 class _GroceryListState extends State<GroceryList> {
   List<GroceryItem> _groceryItems = [];
 
+  var _isLoading = true;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +32,11 @@ class _GroceryListState extends State<GroceryList> {
       url,
       headers: {'Content-Type': 'application/json'},
     );
+    if (res.statusCode >= 400) {
+      setState(() {
+        _error = 'Failed fetch data, please try again later.';
+      });
+    }
     final Map<String, dynamic> body = json.decode(res.body);
     final List<GroceryItem> loadedItems = [];
     for (final item in body.entries) {
@@ -46,6 +53,7 @@ class _GroceryListState extends State<GroceryList> {
       );
       setState(() {
         _groceryItems = loadedItems;
+        _isLoading = false;
       });
     }
   }
@@ -66,16 +74,59 @@ class _GroceryListState extends State<GroceryList> {
     });
   }
 
-  void _removeItem(GroceryItem item) {
+  void _removeItem(GroceryItem item) async {
+    final index = _groceryItems.indexOf(item);
     setState(() {
       _groceryItems.remove(item);
     });
+
+    final url = Uri.https('flutter-grocery-868f9-default-rtdb.firebaseio.com',
+        'shopping-list/${item.id}.json');
+    final res = await http.delete(url);
+    if (res.statusCode >= 300) {
+      setState(() {
+        _groceryItems.insert(index, item);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget emptyListContent =
-        const Center(child: Text('There is no items yet'));
+    Widget content = const Center(child: Text('There is no items yet'));
+
+    if (_isLoading) {
+      content = const Center(child: CircularProgressIndicator());
+    }
+
+    if (_groceryItems.isNotEmpty) {
+      content = ListView.builder(
+        itemCount: _groceryItems.length,
+        itemBuilder: (BuildContext ctx, int index) => Dismissible(
+          key: ValueKey(_groceryItems[index].id),
+          child: ListTile(
+            title: Text(
+              _groceryItems[index].name,
+            ),
+            leading: Container(
+              width: 24,
+              height: 24,
+              color: _groceryItems[index].category.color,
+            ),
+            trailing: Text(
+              _groceryItems[index].quantity.toString(),
+            ),
+          ),
+          onDismissed: (direction) {
+            _removeItem(_groceryItems[index]);
+          },
+        ),
+      );
+    }
+
+    if (_error != null) {
+      content = Center(child: Text(_error!));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Groceries'),
@@ -83,30 +134,7 @@ class _GroceryListState extends State<GroceryList> {
           IconButton(onPressed: _addNewItem, icon: const Icon(Icons.add))
         ],
       ),
-      body: _groceryItems.isNotEmpty
-          ? ListView.builder(
-              itemCount: _groceryItems.length,
-              itemBuilder: (BuildContext context, int index) => Dismissible(
-                key: ValueKey(_groceryItems[index].id),
-                child: ListTile(
-                  title: Text(
-                    _groceryItems[index].name,
-                  ),
-                  leading: Container(
-                    width: 24,
-                    height: 24,
-                    color: _groceryItems[index].category.color,
-                  ),
-                  trailing: Text(
-                    _groceryItems[index].quantity.toString(),
-                  ),
-                ),
-                onDismissed: (direction) {
-                  _removeItem(groceryItems[index]);
-                },
-              ),
-            )
-          : emptyListContent,
+      body: content,
     );
   }
 }

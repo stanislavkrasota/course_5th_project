@@ -20,6 +20,7 @@ class _NewItemState extends State<NewItem> {
   var _enteredName = '';
   var _enteredQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables]!;
+  var _isSendingInProgress = false;
 
   _validateNameField(value) {
     if (value == null ||
@@ -44,6 +45,9 @@ class _NewItemState extends State<NewItem> {
   void _saveItem() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      setState(() {
+        _isSendingInProgress = true;
+      });
       final url = Uri.https('flutter-grocery-868f9-default-rtdb.firebaseio.com',
           'shopping-list.json');
 
@@ -153,12 +157,18 @@ class _NewItemState extends State<NewItem> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _resetForm,
+                    onPressed: _isSendingInProgress ? null : _resetForm,
                     child: const Text('Reset'),
                   ),
                   ElevatedButton(
-                    onPressed: _saveItem,
-                    child: const Text('Add Items'),
+                    onPressed: _isSendingInProgress ? null : _saveItem,
+                    child: _isSendingInProgress
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(),
+                          )
+                        : const Text('Add Item'),
                   )
                 ],
               ),
